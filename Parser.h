@@ -19,4 +19,23 @@ private:
     Token peek();
     Token advance();
 
-}
+    bool match(TokenType type);
+
+    void declaration();
+    void assignment();
+    void ifStatement();
+
+    string expression();
+    string term();
+    string primary();
+
+public:
+
+    Parser(
+        const vector<Token> &tokenList
+    );
+
+    void parse();
+};
+
+#endif
