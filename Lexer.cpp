@@ -24,7 +24,38 @@ bool Lexer::isAsciiDigit(char c)
 {
     return c >= '0' && c <= '9';
 }
+// Check whether current character is a Bangla digit
+bool Lexer::isBanglaDigit()
+{
+    if (current + 2 >= (int)source.length())
+        return false;
 
+    unsigned char b1 = source[current];
+    unsigned char b2 = source[current + 1];
+    unsigned char b3 = source[current + 2];
+
+    // Bangla digits: ০ ১ ২ ৩ ৪ ৫ ৬ ৭ ৮ ৯
+    return b1 == 0xE0 &&
+           b2 == 0xA7 &&
+           b3 >= 0xA6 &&
+           b3 <= 0xAF;
+}
+
+
+// Return Bangla digit value
+int Lexer::getBanglaDigit()
+{
+    if (!isBanglaDigit())
+        return -1;
+
+    unsigned char b3 = source[current + 2];
+
+    int digit = b3 - 0xA6;
+
+    current += 3;
+
+    return digit;
+}
 
 // Check whether current character can start an identifier
 bool Lexer::isIdentifierStart()
@@ -42,9 +73,14 @@ bool Lexer::isIdentifierStart()
 
     // Bangla UTF-8 characters normally start with E0-EF
     if (c >= 0xE0 && c <= 0xEF)
-        return true;
+{
+    if (isBanglaDigit())
+        return false;
 
-    return false;
+    return true;
+}
+
+return false;
 }
 
 
@@ -267,55 +303,99 @@ vector<Token> Lexer::tokenize()
         }
 
 
-        // -----------------------------
-        // Numbers
-        // -----------------------------
-        if (isAsciiDigit(ch))
+        
+// Numbers
+// Supports:
+// 10
+// 20.5
+// ১০
+// ২০.৫
+// -----------------------------
+
+if (isAsciiDigit(ch) || isBanglaDigit())
+{
+    string number;
+    bool isFloat = false;
+
+    // Integer part
+    while (current < (int)source.length())
+    {
+        // ASCII digit
+        if (isAsciiDigit(source[current]))
         {
-            string number;
-            bool isFloat = false;
-
-            // Integer part
-            while (current < (int)source.length() &&
-                   isAsciiDigit(source[current]))
-            {
-                number += source[current];
-                current++;
-            }
-
-            // Decimal part
-            if (current < (int)source.length() &&
-                source[current] == '.')
-            {
-                isFloat = true;
-
-                number += source[current];
-                current++;
-
-                while (current < (int)source.length() &&
-                       isAsciiDigit(source[current]))
-                {
-                    number += source[current];
-                    current++;
-                }
-            }
-
-            if (isFloat)
-            {
-                tokens.push_back(
-                    Token(FLOAT_LITERAL, number)
-                );
-            }
-            else
-            {
-                tokens.push_back(
-                    Token(NUMBER, number)
-                );
-            }
-
-            continue;
+            number += source[current];
+            current++;
         }
 
+        // Bangla digit
+        else if (isBanglaDigit())
+{
+    int start = current;
+
+    getBanglaDigit();
+
+    number += source.substr(start, current - start);
+}
+
+        else
+        {
+            break;
+        }
+    }
+
+
+    // Decimal part
+    if (current < (int)source.length() &&
+        source[current] == '.')
+    {
+        isFloat = true;
+
+        number += '.';
+        current++;
+
+
+        while (current < (int)source.length())
+        {
+            // ASCII digit
+            if (isAsciiDigit(source[current]))
+            {
+                number += source[current];
+                current++;
+            }
+
+            // Bangla digit
+            else if (isBanglaDigit())
+{
+    int start = current;
+
+    getBanglaDigit();
+
+    number += source.substr(start, current - start);
+}
+
+            else
+            {
+                break;
+            }
+        }
+    }
+
+
+    if (isFloat)
+    {
+        tokens.push_back(
+            Token(FLOAT_LITERAL, number)
+        );
+    }
+    else
+    {
+        tokens.push_back(
+            Token(NUMBER, number)
+        );
+    }
+
+    continue;
+}
 
         // -----------------------------
         // Operators and symbols
