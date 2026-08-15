@@ -18,6 +18,9 @@ private:
     bool isIdentifierStart();
     bool isIdentifierPart();
 
+    int getBanglaDigit();
+    bool isBanglaDigit();
+
 public:
     Lexer(const string &src);
 
