@@ -80,7 +80,9 @@ vector<Token> Lexer::tokenize()
     {
         char ch = source[current];
 
+        // -----------------------------
         // Whitespace
+        // -----------------------------
         if (ch == ' ' ||
             ch == '\t' ||
             ch == '\n' ||
@@ -91,7 +93,79 @@ vector<Token> Lexer::tokenize()
         }
 
 
+        // -----------------------------
+        // Character literal
+        // Example: 'a'
+        // -----------------------------
+        if (ch == '\'')
+        {
+            string value;
+
+            value += source[current++];
+
+            while (current < (int)source.length() &&
+                   source[current] != '\'')
+            {
+                value += source[current++];
+            }
+
+            if (current < (int)source.length())
+            {
+                value += source[current++];
+
+                tokens.push_back(
+                    Token(CHAR_LITERAL, value)
+                );
+            }
+            else
+            {
+                tokens.push_back(
+                    Token(UNKNOWN, value)
+                );
+            }
+
+            continue;
+        }
+
+
+        // -----------------------------
+        // String literal
+        // Example: "hello"
+        // -----------------------------
+        if (ch == '"')
+        {
+            string value;
+
+            value += source[current++];
+
+            while (current < (int)source.length() &&
+                   source[current] != '"')
+            {
+                value += source[current++];
+            }
+
+            if (current < (int)source.length())
+            {
+                value += source[current++];
+
+                tokens.push_back(
+                    Token(STRING_LITERAL, value)
+                );
+            }
+            else
+            {
+                tokens.push_back(
+                    Token(UNKNOWN, value)
+                );
+            }
+
+            continue;
+        }
+
+
+        // -----------------------------
         // Identifier / Keyword
+        // -----------------------------
         if (isIdentifierStart())
         {
             string word;
@@ -160,7 +234,9 @@ vector<Token> Lexer::tokenize()
             }
 
 
+            // -----------------------------
             // Bangla keywords
+            // -----------------------------
 
             if (word == "পূর্ণসংখ্যা")
                 tokens.push_back(Token(T_INT, word));
@@ -190,7 +266,9 @@ vector<Token> Lexer::tokenize()
         }
 
 
+        // -----------------------------
         // Numbers
+        // -----------------------------
         if (isAsciiDigit(ch))
         {
             string number;
@@ -235,6 +313,123 @@ vector<Token> Lexer::tokenize()
             }
 
             continue;
+        }
+
+
+        // -----------------------------
+        // Operators and symbols
+        // -----------------------------
+        switch (ch)
+        {
+            case '+':
+                tokens.push_back(Token(PLUS, "+"));
+                current++;
+                break;
+
+            case '-':
+                tokens.push_back(Token(MINUS, "-"));
+                current++;
+                break;
+
+            case '*':
+                tokens.push_back(Token(MUL, "*"));
+                current++;
+                break;
+
+            case '/':
+                tokens.push_back(Token(DIV, "/"));
+                current++;
+                break;
+
+            case '=':
+                if (current + 1 < (int)source.length() &&
+                    source[current + 1] == '=')
+                {
+                    tokens.push_back(Token(EQ, "=="));
+                    current += 2;
+                }
+                else
+                {
+                    tokens.push_back(Token(ASSIGN, "="));
+                    current++;
+                }
+                break;
+
+            case '<':
+                if (current + 1 < (int)source.length() &&
+                    source[current + 1] == '=')
+                {
+                    tokens.push_back(Token(LE, "<="));
+                    current += 2;
+                }
+                else
+                {
+                    tokens.push_back(Token(LT, "<"));
+                    current++;
+                }
+                break;
+
+            case '>':
+                if (current + 1 < (int)source.length() &&
+                    source[current + 1] == '=')
+                {
+                    tokens.push_back(Token(GE, ">="));
+                    current += 2;
+                }
+                else
+                {
+                    tokens.push_back(Token(GT, ">"));
+                    current++;
+                }
+                break;
+
+            case '!':
+                if (current + 1 < (int)source.length() &&
+                    source[current + 1] == '=')
+                {
+                    tokens.push_back(Token(NE, "!="));
+                    current += 2;
+                }
+                else
+                {
+                    tokens.push_back(
+                        Token(UNKNOWN, string(1, ch))
+                    );
+                    current++;
+                }
+                break;
+
+            case '(':
+                tokens.push_back(Token(LPAREN, "("));
+                current++;
+                break;
+
+            case ')':
+                tokens.push_back(Token(RPAREN, ")"));
+                current++;
+                break;
+
+            case '{':
+                tokens.push_back(Token(LBRACE, "{"));
+                current++;
+                break;
+
+            case '}':
+                tokens.push_back(Token(RBRACE, "}"));
+                current++;
+                break;
+
+            case ';':
+                tokens.push_back(Token(SEMICOLON, ";"));
+                current++;
+                break;
+
+            default:
+                tokens.push_back(
+                    Token(UNKNOWN, string(1, ch))
+                );
+                current++;
+                break;
         }
     }
 
