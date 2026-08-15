@@ -58,6 +58,60 @@ void Parser::declaration()
     advance();
 
 
+    if (match(ASSIGN))
+    {
+        int start = current;
+        string valueType = expression();
+        semantic.checkAssignment(
+            type,
+            valueType,
+            id
+        );
+
+
+        if (current == start + 1)
+        {
+            Token value = tokens[start];
+            if (value.type == NUMBER ||value.type == FLOAT_LITERAL)
+            {
+                semantic.setValue(
+                    id,
+                    value.lexeme
+                );
+            }
+        }
+    }
+
+
+    if (!match(SEMICOLON))
+    {
+        cout<< "Syntax Error: Missing ';'"<< endl;
+    }
+}
+
+
+
+string Parser::primary()
+{
+    if (match(NUMBER))return "পূর্ণসংখ্যা";
+    if (match(FLOAT_LITERAL))return "দশমিক";
+    if (match(CHAR_LITERAL))return "অক্ষর";
+    if (match(STRING_LITERAL))return "শব্দ";
+
+    if (peek().type == IDENTIFIER)
+    {
+        string id = peek().lexeme;
+        if (!semantic.exists(id))
+        {
+            advance();
+            return "";
+        }
+        string type = semantic.getType(id);
+        advance();
+        return type;
+    }
+    cout<< "Syntax Error: Invalid expression."<< endl;
+    return "";
 }
 
         
