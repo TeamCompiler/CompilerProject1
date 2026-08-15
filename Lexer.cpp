@@ -2,6 +2,7 @@
 using namespace std;
 
 #include "Lexer.h"
+extern bool hasError;
 
 Lexer::Lexer(const string &src)
 {
@@ -425,6 +426,11 @@ vector<Token> Lexer::tokenize()
                 break;
 
             default:
+                cout << "Lexical Error: Unknown character '"
+                << ch << "'" << endl;
+
+                hasError = true;
+
                 tokens.push_back(
                     Token(UNKNOWN, string(1, ch))
                 );
