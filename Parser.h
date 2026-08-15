@@ -1,9 +1,7 @@
-#ifndef PARSER_H
-#define PARSER_H
-
 #include <bits/stdc++.h>
 using namespace std;
-
+#ifndef PARSER_H
+#define PARSER_H
 #include "Token.h"
 #include "Semantic.h"
 
