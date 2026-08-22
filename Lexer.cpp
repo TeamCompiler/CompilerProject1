@@ -296,6 +296,10 @@ vector<Token> Lexer::tokenize()
             else if (word == "নাহলে")
                 tokens.push_back(Token(T_ELSE_IF, word));
 
+            // যতক্ষণ (while)
+            else if (word == "যতক্ষণ")
+                tokens.push_back(Token(T_WHILE, word));
+
             else
                 tokens.push_back(Token(IDENTIFIER, word));
 
