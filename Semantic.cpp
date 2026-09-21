@@ -2,10 +2,14 @@
 using namespace std;
 
 #include "Semantic.h"
+
 extern bool hasError;
 
 
-// Declare a variable
+// ============================================================
+// Declare
+// ============================================================
+
 void SemanticAnalyzer::declare(
     const string &id,
     const string &type)
@@ -17,6 +21,7 @@ void SemanticAnalyzer::declare(
             << id
             << "' is already declared."
             << endl;
+
         hasError = true;
 
         return;
@@ -33,49 +38,49 @@ void SemanticAnalyzer::declare(
 }
 
 
-// Check whether a variable exists
+// ============================================================
+// Exists
+// ============================================================
+
 bool SemanticAnalyzer::exists(
     const string &id)
 {
-    if (symbolTable.find(id) == symbolTable.end())
-    {
-        cout
-            << "Semantic Error: Variable '"
-            << id
-            << "' is not declared."
-            << endl;
-        hasError = true;
-
-        return false;
-    }
-
-    return true;
+    return symbolTable.find(id)
+           != symbolTable.end();
 }
 
 
-// Get variable type
+// ============================================================
+// Get Type
+// ============================================================
+
 string SemanticAnalyzer::getType(
     const string &id)
 {
-    if (symbolTable.find(id) != symbolTable.end())
+    if (symbolTable.find(id)
+        != symbolTable.end())
+    {
         return symbolTable[id];
+    }
 
     return "";
 }
 
 
-// Check assignment type
+// ============================================================
+// Assignment Checking
+// ============================================================
+
 bool SemanticAnalyzer::checkAssignment(
     const string &variableType,
     const string &valueType,
     const string &variableName)
 {
-    // Same type
     if (variableType == valueType)
         return true;
 
 
-    // Integer can become float
+    // Integer -> Float allowed
     if (variableType == "দশমিক" &&
         valueType == "পূর্ণসংখ্যা")
     {
@@ -87,7 +92,7 @@ bool SemanticAnalyzer::checkAssignment(
     }
 
 
-    // Float cannot become integer
+    // Float -> Integer not allowed
     if (variableType == "পূর্ণসংখ্যা" &&
         valueType == "দশমিক")
     {
@@ -97,31 +102,29 @@ bool SemanticAnalyzer::checkAssignment(
             << variableName
             << "'."
             << endl;
+
         hasError = true;
 
         return false;
     }
 
 
-    // Other type mismatch
     cout
         << "Semantic Error: Type mismatch for variable '"
         << variableName
         << "'."
         << endl;
+
     hasError = true;
 
     return false;
 }
 
 
-// Check arithmetic operation
-//
-// int + int     -> int
-// int + float   -> float
-// float + int   -> float
-// float + float -> float
-//
+// ============================================================
+// Arithmetic Type Checking
+// ============================================================
+
 string SemanticAnalyzer::checkArithmetic(
     const string &leftType,
     const string &rightType)
@@ -157,13 +160,17 @@ string SemanticAnalyzer::checkArithmetic(
     cout
         << "Semantic Error: Invalid arithmetic operation."
         << endl;
+
     hasError = true;
 
     return "";
 }
 
 
-// Store a known value
+// ============================================================
+// Store Value
+// ============================================================
+
 void SemanticAnalyzer::setValue(
     const string &id,
     const string &value)
@@ -172,13 +179,61 @@ void SemanticAnalyzer::setValue(
 }
 
 
-// Check whether a value is zero
+// ============================================================
+// Check Zero Value
+// ============================================================
+
 bool SemanticAnalyzer::isZeroValue(
     const string &value)
 {
     try
     {
-        double number = stod(value);
+        // ----------------------------------------------------
+        // Convert Bangla digits to English digits
+        // ----------------------------------------------------
+
+        string converted;
+
+        for (size_t i = 0; i < value.length();)
+        {
+            unsigned char c =
+                static_cast<unsigned char>(value[i]);
+
+            // Bangla UTF-8 digits:
+            // ০ = E0 A7  A6
+            // ১ = E0 A7 A7
+            // ...
+            // ৯ = E0 A7 AE
+
+            if (i + 2 < value.length() &&
+                c == 0xE0 &&
+                static_cast<unsigned char>(value[i + 1]) == 0xA7)
+            {
+                unsigned char digit =
+                    static_cast<unsigned char>(value[i + 2]);
+
+                if (digit >= 0xA6 &&
+                    digit <= 0xAE)
+                {
+                    char englishDigit =
+                        '0' + (digit - 0xA6);
+
+                    converted += englishDigit;
+
+                    i += 3;
+
+                    continue;
+                }
+            }
+
+            converted += value[i];
+
+            i++;
+        }
+
+
+        double number =
+            stod(converted);
 
         return number == 0.0;
     }
@@ -189,12 +244,388 @@ bool SemanticAnalyzer::isZeroValue(
 }
 
 
-// Check whether a variable contains zero
+// ============================================================
+// Check Variable Zero
+// ============================================================
+
 bool SemanticAnalyzer::isZero(
     const string &id)
 {
-    if (valueTable.find(id) == valueTable.end())
+    if (valueTable.find(id)
+        == valueTable.end())
+    {
         return false;
+    }
 
-    return isZeroValue(valueTable[id]);
+    return isZeroValue(
+        valueTable[id]
+    );
+}
+
+
+// ============================================================
+// Expression Semantic Analysis
+// ============================================================
+
+string SemanticAnalyzer::analyzeExpression(
+    ExprPtr expr)
+{
+    if (!expr)
+        return "";
+
+
+    // --------------------------------------------------------
+    // Literal
+    // --------------------------------------------------------
+
+    auto literal =
+        dynamic_pointer_cast<LiteralExpr>(expr);
+
+    if (literal)
+    {
+        return literal->type;
+    }
+
+
+    // --------------------------------------------------------
+    // Variable
+    // --------------------------------------------------------
+
+    auto variable =
+        dynamic_pointer_cast<VariableExpr>(expr);
+
+    if (variable)
+    {
+        if (!exists(variable->name))
+        {
+            cout
+                << "Semantic Error: Variable '"
+                << variable->name
+                << "' is not declared."
+                << endl;
+
+            hasError = true;
+
+            return "";
+        }
+
+        return getType(variable->name);
+    }
+
+
+    // --------------------------------------------------------
+    // Binary Expression
+    // --------------------------------------------------------
+
+    auto binary =
+        dynamic_pointer_cast<BinaryExpr>(expr);
+
+    if (binary)
+    {
+        string leftType =
+            analyzeExpression(binary->left);
+
+        string rightType =
+            analyzeExpression(binary->right);
+
+
+        if (binary->op == "<" ||
+            binary->op == ">" ||
+            binary->op == "<=" ||
+            binary->op == ">=" ||
+            binary->op == "==" ||
+            binary->op == "!=")
+        {
+            if (leftType.empty() ||
+                rightType.empty())
+            {
+                return "";
+            }
+
+            // Numeric comparison
+            if ((leftType == "পূর্ণসংখ্যা" ||
+                 leftType == "দশমিক") &&
+
+                (rightType == "পূর্ণসংখ্যা" ||
+                 rightType == "দশমিক"))
+            {
+                return "boolean";
+            }
+
+
+            if (leftType == rightType)
+                return "boolean";
+
+
+            cout
+                << "Semantic Error: Invalid comparison."
+                << endl;
+
+            hasError = true;
+
+            return "";
+        }
+
+
+        // ----------------------------------------------------
+        // Division by zero
+        // ----------------------------------------------------
+
+        if (binary->op == "/")
+        {
+            auto literalRight =
+                dynamic_pointer_cast<LiteralExpr>(
+                    binary->right
+                );
+
+            if (literalRight)
+            {
+                if (literalRight->type == "পূর্ণসংখ্যা" ||
+                    literalRight->type == "দশমিক")
+                {
+                    if (isZeroValue(
+                            literalRight->value))
+                    {
+                        cout
+                            << "Semantic Error: "
+                            << "Division by zero is undefined."
+                            << endl;
+
+                        hasError = true;
+                    }
+                }
+            }
+
+
+            auto variableRight =
+                dynamic_pointer_cast<VariableExpr>(
+                    binary->right
+                );
+
+            if (variableRight)
+            {
+                if (isZero(variableRight->name))
+                {
+                    cout
+                        << "Semantic Error: "
+                        << "Division by zero is undefined."
+                        << endl;
+
+                    hasError = true;
+                }
+            }
+        }
+
+
+        binary->resultType =
+            checkArithmetic(
+                leftType,
+                rightType
+            );
+
+        return binary->resultType;
+    }
+
+
+    return "";
+}
+
+
+// ============================================================
+// Statement Analysis
+// ============================================================
+
+void SemanticAnalyzer::analyzeStatement(
+    StmtPtr stmt)
+{
+    if (!stmt)
+        return;
+
+
+    // --------------------------------------------------------
+    // Declaration
+    // --------------------------------------------------------
+
+    auto declaration =
+        dynamic_pointer_cast<DeclarationStmt>(
+            stmt
+        );
+
+    if (declaration)
+    {
+        declare(
+            declaration->name,
+            declaration->type
+        );
+
+
+        if (declaration->initializer)
+        {
+            string valueType =
+                analyzeExpression(
+                    declaration->initializer
+                );
+
+            checkAssignment(
+                declaration->type,
+                valueType,
+                declaration->name
+            );
+
+
+            auto literal =
+                dynamic_pointer_cast<LiteralExpr>(
+                    declaration->initializer
+                );
+
+            if (literal)
+            {
+                if (literal->type == "পূর্ণসংখ্যা" ||
+                    literal->type == "দশমিক")
+                {
+                    setValue(
+                        declaration->name,
+                        literal->value
+                    );
+                }
+            }
+        }
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // Assignment
+    // --------------------------------------------------------
+
+    auto assignment =
+        dynamic_pointer_cast<AssignmentStmt>(
+            stmt
+        );
+
+    if (assignment)
+    {
+        if (!exists(assignment->name))
+        {
+            cout
+                << "Semantic Error: Variable '"
+                << assignment->name
+                << "' is not declared."
+                << endl;
+
+            hasError = true;
+
+            return;
+        }
+
+
+        string valueType =
+            analyzeExpression(
+                assignment->value
+            );
+
+
+        checkAssignment(
+            getType(assignment->name),
+            valueType,
+            assignment->name
+        );
+
+
+        auto literal =
+            dynamic_pointer_cast<LiteralExpr>(
+                assignment->value
+            );
+
+        if (literal)
+        {
+            if (literal->type == "পূর্ণসংখ্যা" ||
+                literal->type == "দশমিক")
+            {
+                setValue(
+                    assignment->name,
+                    literal->value
+                );
+            }
+        }
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // If
+    // --------------------------------------------------------
+
+    auto ifNode =
+        dynamic_pointer_cast<IfStmt>(stmt);
+
+    if (ifNode)
+    {
+        analyzeExpression(
+            ifNode->condition
+        );
+
+        analyzeStatements(
+            ifNode->thenBranch
+        );
+
+        analyzeStatements(
+            ifNode->elseBranch
+        );
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // While
+    // --------------------------------------------------------
+
+    auto whileNode =
+        dynamic_pointer_cast<WhileStmt>(stmt);
+
+    if (whileNode)
+    {
+        analyzeExpression(
+            whileNode->condition
+        );
+
+        analyzeStatements(
+            whileNode->body
+        );
+
+        return;
+    }
+}
+
+
+// ============================================================
+// Analyze List
+// ============================================================
+
+void SemanticAnalyzer::analyzeStatements(
+    const vector<StmtPtr> &statements)
+{
+    for (const auto &stmt : statements)
+    {
+        analyzeStatement(stmt);
+    }
+}
+
+
+// ============================================================
+// Analyze Whole AST
+// ============================================================
+
+void SemanticAnalyzer::analyze(
+    ProgramPtr program)
+{
+    if (!program)
+        return;
+
+    analyzeStatements(
+        program->statements
+    );
 }
