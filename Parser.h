@@ -12,20 +12,30 @@ private:
     vector<Token> tokens;
     int current;
 
-    SemanticAnalyzer semantic;
-
     Token peek();
     Token advance();
 
     bool match(TokenType type);
 
-    void declaration();
-    void assignment();
-    void ifStatement();
+    void synchronize();
 
-    string expression();
-    string term();
-    string primary();
+    // Statements
+    StmtPtr declaration();
+    StmtPtr assignment();
+    StmtPtr ifStatement();
+    StmtPtr whileStatement();
+
+    // Expressions
+    ExprPtr expression();
+    ExprPtr term();
+    ExprPtr primary();
+
+    // Condition
+    ExprPtr condition();
+
+    // Block
+    vector<StmtPtr> statementList();
+
 
 public:
 
@@ -33,7 +43,8 @@ public:
         const vector<Token> &tokenList
     );
 
-    void parse();
+    ProgramPtr parse();
+
 };
 
 #endif

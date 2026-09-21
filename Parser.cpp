@@ -44,7 +44,228 @@ bool Parser::match(TokenType type)
 }
 
 
-void Parser::declaration()
+// Error Recovery
+
+
+void Parser::synchronize()
+{
+    while (peek().type != END_OF_FILE)
+    {
+        if (peek().type == SEMICOLON)
+        {
+            advance();
+            return;
+        }
+
+        if (peek().type == RBRACE)
+            return;
+
+        advance();
+    }
+}
+
+// Primary Expression
+
+
+ExprPtr Parser::primary()
+{
+    // Parenthesized Expression
+    if (match(LPAREN))
+    {
+        ExprPtr expr = expression();
+
+        if (!expr)
+            return nullptr;
+
+        if (!match(RPAREN))
+        {
+            cout
+                << "Syntax Error: Missing ')'."
+                << endl;
+
+            hasError = true;
+
+            return nullptr;
+        }
+
+        return expr;
+    }
+
+
+    // Integer
+    if (peek().type == NUMBER)
+    {
+        string value = peek().lexeme;
+        advance();
+
+        return make_shared<LiteralExpr>(
+            "পূর্ণসংখ্যা",
+            value
+        );
+    }
+
+
+    // Float
+    if (peek().type == FLOAT_LITERAL)
+    {
+        string value = peek().lexeme;
+        advance();
+
+        return make_shared<LiteralExpr>(
+            "দশমিক",
+            value
+        );
+    }
+
+
+    // Character
+    if (peek().type == CHAR_LITERAL)
+    {
+        string value = peek().lexeme;
+        advance();
+
+        return make_shared<LiteralExpr>(
+            "অক্ষর",
+            value
+        );
+    }
+
+
+    // String
+    if (peek().type == STRING_LITERAL)
+    {
+        string value = peek().lexeme;
+        advance();
+
+        return make_shared<LiteralExpr>(
+            "শব্দ",
+            value
+        );
+    }
+
+
+    // Identifier
+    if (peek().type == IDENTIFIER)
+    {
+        string name = peek().lexeme;
+        advance();
+
+        return make_shared<VariableExpr>(
+            name
+        );
+    }
+
+
+    cout
+        << "Syntax Error: Invalid expression."
+        << endl;
+
+    hasError = true;
+
+    return nullptr;
+}
+
+// Multiplication / Division
+
+
+ExprPtr Parser::term()
+{
+    ExprPtr left = primary();
+
+    if (!left)
+        return nullptr;
+
+    while (peek().type == MUL ||
+           peek().type == DIV)
+    {
+        Token op = advance();
+
+        ExprPtr right = primary();
+
+        if (!right)
+            return nullptr;
+
+        left = make_shared<BinaryExpr>(
+            left,
+            op.lexeme,
+            right
+        );
+    }
+
+    return left;
+}
+
+// Addition / Subtraction
+
+ExprPtr Parser::expression()
+{
+    ExprPtr left = term();
+
+    if (!left)
+        return nullptr;
+
+    while (peek().type == PLUS ||
+           peek().type == MINUS)
+    {
+        Token op = advance();
+
+        ExprPtr right = term();
+
+        if (!right)
+            return nullptr;
+
+        left = make_shared<BinaryExpr>(
+            left,
+            op.lexeme,
+            right
+        );
+    }
+
+    return left;
+}
+
+
+// Condition
+//
+// গণনা < ৫
+// গণনা == ৩
+// সংখ্যা >= ৫
+
+ExprPtr Parser::condition()
+{
+    ExprPtr left = expression();
+
+    if (!left)
+        return nullptr;
+
+    if (peek().type == LT ||
+        peek().type == GT ||
+        peek().type == LE ||
+        peek().type == GE ||
+        peek().type == EQ ||
+        peek().type == NE)
+    {
+        Token op = advance();
+
+        ExprPtr right = expression();
+
+        if (!right)
+            return nullptr;
+
+        return make_shared<BinaryExpr>(
+            left,
+            op.lexeme,
+            right
+        );
+    }
+
+    return left;
+}
+
+// Declaration
+
+
+StmtPtr Parser::declaration()
 {
     string type;
 
@@ -62,320 +283,412 @@ void Parser::declaration()
 
     else
     {
-        cout<< "Syntax Error: Invalid type."<< endl;
+        cout
+            << "Syntax Error: Invalid type."
+            << endl;
+
         hasError = true;
 
-        return;
+        synchronize();
+
+        return nullptr;
     }
+
+
     if (peek().type != IDENTIFIER)
     {
-        cout<< "Syntax Error: Identifier expected."<< endl;
+        cout
+            << "Syntax Error: Identifier expected."
+            << endl;
+
         hasError = true;
 
-        return;
+        synchronize();
+
+        return nullptr;
     }
 
 
-    string id = peek().lexeme;
-    semantic.declare(id, type);
+    string name = peek().lexeme;
+
     advance();
-    // Lexical error token was already reported by Lexer
-    if (peek().type == UNKNOWN)
-    {
-    advance();
-    return;
-    }
-    // Optional initialization
+
+
+    ExprPtr initializer = nullptr;
+
     if (match(ASSIGN))
     {
-        int start = current;
-        string valueType = expression();
-        semantic.checkAssignment(type, valueType,id);
+        initializer = expression();
 
-
-        // Save simple number values
-        if (current == start + 1)
+        if (!initializer)
         {
-            Token value = tokens[start];
-           if (value.type == NUMBER ||value.type == FLOAT_LITERAL)
-            {
-                semantic.setValue(id,value.lexeme);
-            }
+            synchronize();
+            return nullptr;
         }
     }
+
 
     if (!match(SEMICOLON))
     {
-        cout<< "Syntax Error: Missing ';'"<< endl;
+        cout
+            << "Syntax Error: Missing ';'"
+            << endl;
+
         hasError = true;
+
+        synchronize();
+
+        return nullptr;
     }
-}
-// Primary expression
-string Parser::primary()
-{
-    // Integer
-    if (match(NUMBER))return "পূর্ণসংখ্যা";
-        // Float
-    if (match(FLOAT_LITERAL)) return "দশমিক";
-     // Character
-    if (match(CHAR_LITERAL))return "অক্ষর";
-     // String
-    if (match(STRING_LITERAL))return "শব্দ";
-    // Variable
-    if (peek().type == IDENTIFIER)
-    {
-        string id = peek().lexeme;
-       if (!semantic.exists(id))
-        {
-            advance();
-            return "";
-        }
-        string type = semantic.getType(id);
-        advance();
-        return type;
-    }
-    cout<< "Syntax Error: Invalid expression."<< endl;
-    hasError = true;
-    return "";
-}
-
-// Multiplication and division
 
 
-string Parser::term()
-{
-    string leftType = primary();
-
-    while (peek().type == MUL ||
-           peek().type == DIV)
-    {
-        Token op = advance();
-
-
-        // Check division by zero
-        if (op.type == DIV)
-        {
-            // 10 / 0
-            if (peek().type == NUMBER &&
-                peek().lexeme == "0")
-            {
-                cout<< "Semantic Error: "<< "Division by zero is undefined."<< endl;
-                hasError = true;
-            }
-
-
-            // 10 / 0.0
-            else if (peek().type == FLOAT_LITERAL)
-            {
-                if (stod(peek().lexeme) == 0.0)
-                {
-                    cout<< "Semantic Error: "<< "Division by zero is undefined."<< endl;
-                    hasError = true;
-                }
-            }
-
-            // 10 / b
-            else if (peek().type == IDENTIFIER)
-            {
-                string divisor = peek().lexeme;
-
-                if (semantic.exists(divisor) &&
-                    semantic.isZero(divisor))
-                {
-                    cout << "Semantic Error: "<< "Division by zero is undefined."<< endl;
-                    hasError = true;
-                }
-            }
-        }
-         string rightType = primary();
-        leftType =semantic.checkArithmetic(leftType,rightType );
-    }
-    return leftType;
-}
-
-// Addition and subtraction
-string Parser::expression()
-{
-    string leftType = term();
-
-    while (peek().type == PLUS ||peek().type == MINUS)
-    {
-        advance();
-        string rightType = term();
-        leftType = semantic.checkArithmetic(leftType,rightType);
-    }
-    return leftType;
+    return make_shared<DeclarationStmt>(
+        type,
+        name,
+        initializer
+    );
 }
 
 // Assignment
 
 
-void Parser::assignment()
+StmtPtr Parser::assignment()
 {
-    string id = peek().lexeme;
+    string name = peek().lexeme;
 
-
-    if (!semantic.exists(id))
-    {
-        advance();
-        if (match(ASSIGN))
-            expression();
-            match(SEMICOLON);
-            return;
-    }
-
-
-    string variableType =semantic.getType(id);
     advance();
 
 
     if (!match(ASSIGN))
     {
-        cout<< "Syntax Error: '=' expected."<< endl;
+        cout
+            << "Syntax Error: '=' expected."
+            << endl;
+
         hasError = true;
-        return;
+
+        synchronize();
+
+        return nullptr;
     }
 
 
-    int start = current;
-    string valueType = expression();
-    // Type checking
-    semantic.checkAssignment(variableType,valueType,id);
-     // Store simple number
-    if (current == start + 1)
+    ExprPtr value = expression();
+
+    if (!value)
     {
-        Token value = tokens[start];
-        if (value.type == NUMBER ||value.type == FLOAT_LITERAL)
-        {
-            semantic.setValue(id,value.lexeme);
-        }
+        synchronize();
+        return nullptr;
     }
 
 
     if (!match(SEMICOLON))
     {
-        cout<< "Syntax Error: Missing ';'"<< endl;
+        cout
+            << "Syntax Error: Missing ';'"
+            << endl;
+
         hasError = true;
+
+        synchronize();
+
+        return nullptr;
     }
+
+
+    return make_shared<AssignmentStmt>(
+        name,
+        value
+    );
 }
 
-// If / Else
 
-void Parser::ifStatement()
+// Statement List
+
+
+vector<StmtPtr> Parser::statementList()
+{
+    vector<StmtPtr> statements;
+
+    while (peek().type != RBRACE &&
+           peek().type != END_OF_FILE)
+    {
+        StmtPtr stmt = nullptr;
+
+
+        if (peek().type == T_INT ||
+            peek().type == T_CHAR ||
+            peek().type == T_STRING ||
+            peek().type == T_FLOAT)
+        {
+            stmt = declaration();
+        }
+
+        else if (peek().type == IDENTIFIER)
+        {
+            stmt = assignment();
+        }
+
+        else if (peek().type == T_IF)
+        {
+            stmt = ifStatement();
+        }
+
+        else if (peek().type == T_WHILE)
+        {
+            stmt = whileStatement();
+        }
+
+        else
+        {
+            cout
+                << "Syntax Error: Unexpected token '"
+                << peek().lexeme
+                << "'."
+                << endl;
+
+            hasError = true;
+
+            advance();
+            synchronize();
+
+            continue;
+        }
+
+
+        if (stmt)
+            statements.push_back(stmt);
+    }
+
+    return statements;
+}
+
+
+// If Statement
+
+
+StmtPtr Parser::ifStatement()
 {
     match(T_IF);
 
+
     if (!match(LPAREN))
     {
-        cout<< "Syntax Error: Missing '('."<< endl;
+        cout
+            << "Syntax Error: Missing '('."
+            << endl;
+
         hasError = true;
+
+        synchronize();
     }
-    expression();
 
 
-    // Relational operator
-    if (peek().type == LT ||peek().type == GT || peek().type == LE || peek().type == GE ||peek().type == EQ || peek().type == NE)
+    ExprPtr cond = condition();
+
+    if (!cond)
     {
-        advance();
-        expression();
+        synchronize();
+        return nullptr;
     }
 
 
     if (!match(RPAREN))
     {
-        cout << "Syntax Error: Missing ')'."<< endl;
+        cout
+            << "Syntax Error: Missing ')'."
+            << endl;
+
         hasError = true;
+
+        synchronize();
     }
 
 
     if (!match(LBRACE))
     {
-        cout<< "Syntax Error: Missing '{'." << endl;
+        cout
+            << "Syntax Error: Missing '{'."
+            << endl;
+
+        hasError = true;
+
+        synchronize();
+    }
+
+
+    auto node = make_shared<IfStmt>(cond);
+
+    node->thenBranch = statementList();
+
+
+    if (!match(RBRACE))
+    {
+        cout
+            << "Syntax Error: Missing '}'."
+            << endl;
+
         hasError = true;
     }
 
 
-    // IF block
-    while (peek().type != RBRACE &&peek().type != END_OF_FILE)
-    {
-        if (peek().type == T_INT ||
-            peek().type == T_CHAR ||
-            peek().type == T_STRING ||
-            peek().type == T_FLOAT)
-        {
-            declaration();
-        }
-
-        else if (peek().type == IDENTIFIER)
-        {
-            assignment();
-        }
-
-        else
-        {
-            advance();
-        }
-    }
-    match(RBRACE);
-    // ELSE block
+    // Else
     if (match(T_ELSE))
     {
         if (!match(LBRACE))
         {
-            cout<< "Syntax Error: Missing '{'."<< endl;
+            cout
+                << "Syntax Error: Missing '{'."
+                << endl;
+
+            hasError = true;
+
+            synchronize();
+        }
+
+        node->elseBranch = statementList();
+
+        if (!match(RBRACE))
+        {
+            cout
+                << "Syntax Error: Missing '}'."
+                << endl;
+
             hasError = true;
         }
-
-
-        while (peek().type != RBRACE && peek().type != END_OF_FILE)
-        {
-            if (peek().type == T_INT ||
-                peek().type == T_CHAR ||
-                peek().type == T_STRING ||
-                peek().type == T_FLOAT)
-            {
-                declaration();
-            }
-
-            else if (peek().type == IDENTIFIER)
-            {
-                assignment();
-            }
-
-            else
-            {
-                advance();
-            }
-        }
-       match(RBRACE);
     }
+
+
+    return node;
 }
 
-// Parse entire program
-void Parser::parse()
+// While Statement
+
+StmtPtr Parser::whileStatement()
 {
+    match(T_WHILE);
+
+
+    if (!match(LPAREN))
+    {
+        cout
+            << "Syntax Error: Missing '('."
+            << endl;
+
+        hasError = true;
+
+        synchronize();
+    }
+
+
+    ExprPtr cond = condition();
+
+    if (!cond)
+    {
+        synchronize();
+        return nullptr;
+    }
+
+
+    if (!match(RPAREN))
+    {
+        cout
+            << "Syntax Error: Missing ')'."
+            << endl;
+
+        hasError = true;
+
+        synchronize();
+    }
+
+
+    if (!match(LBRACE))
+    {
+        cout
+            << "Syntax Error: Missing '{'."
+            << endl;
+
+        hasError = true;
+
+        synchronize();
+    }
+
+
+    auto node = make_shared<WhileStmt>(cond);
+
+    node->body = statementList();
+
+
+    if (!match(RBRACE))
+    {
+        cout
+            << "Syntax Error: Missing '}'."
+            << endl;
+
+        hasError = true;
+    }
+
+
+    return node;
+}
+
+// Parse Program
+
+
+ProgramPtr Parser::parse()
+{
+    auto program = make_shared<Program>();
+
+
     while (peek().type != END_OF_FILE)
     {
+        StmtPtr stmt = nullptr;
+
+
         if (peek().type == T_INT ||
             peek().type == T_CHAR ||
             peek().type == T_STRING ||
             peek().type == T_FLOAT)
         {
-            declaration();
+            stmt = declaration();
         }
-      else if (peek().type == IDENTIFIER)
+
+        else if (peek().type == IDENTIFIER)
         {
-            assignment();
+            stmt = assignment();
         }
+
         else if (peek().type == T_IF)
         {
-            ifStatement();
+            stmt = ifStatement();
+        }
+
+        else if (peek().type == T_WHILE)
+        {
+            stmt = whileStatement();
         }
 
         else
         {
+            cout
+                << "Syntax Error: Unexpected token '"
+                << peek().lexeme
+                << "'."
+                << endl;
+
+            hasError = true;
+
             advance();
+            synchronize();
+
+            continue;
         }
+
+
+        if (stmt)
+            program->statements.push_back(stmt);
     }
-  
+
+
+    return program;
 }
